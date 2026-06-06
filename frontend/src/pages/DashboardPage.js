@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import Navbar from '../components/shared/Navbar';
 import { useAuth } from '../context/AuthContext';
-import { userAPI } from '../services/api';
+import { userAPI, subscriptionAPI } from '../services/api';
 import toast from 'react-hot-toast';
 
 const mockUsageData = [
@@ -12,13 +12,55 @@ const mockUsageData = [
 
 const planColors = { free: '#94a3b8', basic: '#22c55e', pro: '#6366f1', enterprise: '#f59e0b' };
 
+const DashboardSkeleton = () => (
+  <div style={{ minHeight: '100vh', background: '#0f0f1a' }}>
+    <Navbar />
+    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 20px' }}>
+      <div style={{ marginBottom: 32 }}>
+        <div className="skeleton" style={{ width: 250, height: 36, marginBottom: 12 }}></div>
+        <div className="skeleton" style={{ width: 180, height: 16 }}></div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 20, marginBottom: 32 }}>
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} className="card" style={{ padding: 24 }}>
+            <div className="skeleton" style={{ width: 80, height: 13, marginBottom: 12 }}></div>
+            <div className="skeleton" style={{ width: 120, height: 32 }}></div>
+          </div>
+        ))}
+      </div>
+      <div className="card" style={{ padding: 24, marginBottom: 24 }}>
+        <div className="skeleton" style={{ width: 180, height: 20, marginBottom: 20 }}></div>
+        <div className="skeleton" style={{ width: '100%', height: 200 }}></div>
+      </div>
+    </div>
+  </div>
+);
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const [usage, setUsage] = useState(null);
+  const [invoices, setInvoices] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    userAPI.getUsage().then(r => setUsage(r.data.data)).catch(() => toast.error('Failed to load usage'));
+    const loadDashboardData = async () => {
+      try {
+        const [usageRes, invoicesRes] = await Promise.all([
+          userAPI.getUsage(),
+          subscriptionAPI.getInvoices()
+        ]);
+        setUsage(usageRes.data.data);
+        setInvoices(invoicesRes.data.data.invoices || []);
+      } catch (err) {
+        toast.error('Failed to load dashboard data');
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadDashboardData();
   }, []);
+
+  if (loading) return <DashboardSkeleton />;
 
   const plan = user?.subscription?.plan || 'free';
   const planLimits = { free: 100, basic: 1000, pro: 10000, enterprise: Infinity };
@@ -83,6 +125,48 @@ export default function DashboardPage() {
           </div>
           <div style={s.progressBar}><div style={s.progressFill}></div></div>
           {pct > 80 && <p style={{ color: '#f59e0b', fontSize: 12, marginTop: 8 }}>⚠️ You're using {pct.toFixed(0)}% of your quota. Consider upgrading.</p>}
+        </div>
+
+        <div style={s.chartCard}>
+          <h3 style={{ fontFamily: "'Space Grotesk',sans-serif", marginBottom: 20 }}>Billing History</h3>
+          {invoices.length === 0 ? (
+            <p style={{ color: '#94a3b8', fontSize: 14 }}>No invoices found.</p>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="table" style={{ width: '100%' }}>
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Amount</th>
+                    <th>Status</th>
+                    <th>Invoice</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoices.map((invoice) => (
+                    <tr key={invoice.id}>
+                      <td>{new Date(invoice.date).toLocaleDateString()}</td>
+                      <td>{invoice.amount.toLocaleString(undefined, { style: 'currency', currency: invoice.currency })}</td>
+                      <td>
+                        <span className={`badge ${invoice.status === 'paid' ? 'badge-success' : 'badge-warning'}`}>
+                          {invoice.status.toUpperCase()}
+                        </span>
+                      </td>
+                      <td>
+                        {invoice.url ? (
+                          <a href={invoice.url} target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-sm">
+                            View Invoice
+                          </a>
+                        ) : (
+                          <span style={{ color: '#94a3b8', fontSize: 13 }}>N/A</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {!user?.isEmailVerified && (

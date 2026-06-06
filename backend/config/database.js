@@ -3,6 +3,7 @@ const logger = require('../utils/logger');
 
 const connectDB = async () => {
   try {
+    if (mongoose.connection.readyState >= 1) return;
     const conn = await mongoose.connect(process.env.MONGO_URI);
     logger.info(`MongoDB Connected: ${conn.connection.host}`);
     mongoose.connection.on('error', (err) => logger.error(`MongoDB error: ${err}`));

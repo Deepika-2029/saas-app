@@ -47,6 +47,10 @@ exports.getMe = async (req, res) => {
   ApiResponse.success(res, { user: req.user }, 'User profile retrieved');
 };
 
-exports.logout = (req, res) => {
-  ApiResponse.success(res, {}, 'Logged out successfully');
+exports.logout = async (req, res, next) => {
+  try {
+    const { refreshToken } = req.body;
+    await authService.logout(refreshToken);
+    ApiResponse.success(res, {}, 'Logged out successfully');
+  } catch (error) { next(error); }
 };

@@ -19,11 +19,12 @@ exports.register = async ({ name, email, password }) => {
   const verificationToken = user.generateEmailVerificationToken();
   await user.save({ validateBeforeSave: false });
 
-  const verifyUrl = `${process.env.CLIENT_URL}/verify-email/${verificationToken}`;
+  const { getWelcomeEmail } = require('../utils/emailTemplates');
+  const verifyUrl = `${process.env.CLIENT_URL || 'http://localhost:3000'}/verify-email/${verificationToken}`;
   await sendEmail({
     to: email,
     subject: 'Verify Your Email - SaaSApp',
-    html: `<h2>Welcome to SaaSApp!</h2><p>Click <a href="${verifyUrl}">here</a> to verify your email.</p>`,
+    html: getWelcomeEmail(user.name, verifyUrl),
   });
 
   const tokens = generateTokens(user._id);
@@ -76,15 +77,16 @@ exports.forgotPassword = async (email) => {
   const resetUrl = `${process.env.CLIENT_URL || 'http://localhost:3000'}/reset-password/${resetToken}`;
 
   // In development: skip email, just return the link directly
-  if (process.env.NODE_ENV !== 'production') {
+  if (process.env.NODE_ENV === 'development') {
     console.log(`\n🔑 DEV MODE — Password Reset Link:\n${resetUrl}\n`);
     return { devResetUrl: resetUrl };
   }
 
+  const { getPasswordResetEmail } = require('../utils/emailTemplates');
   await sendEmail({
     to: email,
     subject: 'Password Reset Request - SaaSApp',
-    html: `<h2>Reset Your Password</h2><p>Click <a href="${resetUrl}">here</a> to reset. Expires in 10 minutes.</p>`,
+    html: getPasswordResetEmail(user.name, resetUrl),
   });
   return {};
 };
@@ -106,12 +108,41 @@ exports.resetPassword = async (token, newPassword) => {
 
 exports.refreshAccessToken = async (refreshToken) => {
   if (!refreshToken) throw new AppError('Refresh token required', 401);
+
+  // Check if token is blacklisted in Redis
+  try {
+    const redis = require('../utils/redisClient');
+    const isBlacklisted = await redis.get(`blacklist:${refreshToken}`);
+    if (isBlacklisted) {
+      throw new AppError('Refresh token is blacklisted', 401);
+    }
+  } catch (err) {
+    if (err.statusCode === 401) throw err;
+    logger.error(`Redis blacklist check error: ${err.message}`);
+  }
+
   try {
     const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
     const user = await User.findById(decoded.id);
     if (!user || !user.isActive) throw new AppError('User not found or inactive', 401);
     return generateTokens(user._id);
-  } catch {
+  } catch (error) {
+    if (error.statusCode === 401) throw error;
     throw new AppError('Invalid refresh token', 401);
+  }
+};
+
+exports.logout = async (refreshToken) => {
+  if (!refreshToken) return;
+  try {
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+    const remainingSeconds = decoded.exp - Math.floor(Date.now() / 1000);
+    if (remainingSeconds > 0) {
+      const redis = require('../utils/redisClient');
+      await redis.set(`blacklist:${refreshToken}`, 'true', 'EX', remainingSeconds);
+      logger.info('Refresh token blacklisted successfully in Redis');
+    }
+  } catch (error) {
+    logger.warn(`Failed to blacklist refresh token on logout: ${error.message}`);
   }
 };

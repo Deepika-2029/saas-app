@@ -24,11 +24,11 @@ saas-app/
 │   │   ├── Subscription.js     # Subscription tracking
 │   │   └── AuditLog.js         # Audit log (TTL: 90d)
 │   ├── routes/
-│   │   ├── auth.js             # /api/auth/*
-│   │   ├── users.js            # /api/users/*
-│   │   ├── subscriptions.js    # /api/subscriptions/*
-│   │   ├── admin.js            # /api/admin/*
-│   │   └── webhooks.js         # /api/webhooks/stripe
+│   │   ├── auth.js             # /api/v1/auth/*
+│   │   ├── users.js            # /api/v1/users/*
+│   │   ├── subscriptions.js    # /api/v1/subscriptions/*
+│   │   ├── admin.js            # /api/v1/admin/*
+│   │   └── webhooks.js         # /api/v1/webhooks/stripe
 │   ├── services/
 │   │   ├── authService.js      # Auth business logic
 │   │   └── subscriptionService.js # Stripe + billing
@@ -113,42 +113,42 @@ docker-compose up -d
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/auth/register` | POST | Register + email verification |
-| `/api/auth/login` | POST | Login + JWT tokens |
-| `/api/auth/logout` | POST | Logout |
-| `/api/auth/verify-email/:token` | GET | Verify email |
-| `/api/auth/forgot-password` | POST | Send reset email |
-| `/api/auth/reset-password/:token` | POST | Reset password |
-| `/api/auth/refresh-token` | POST | Refresh access token |
-| `/api/auth/me` | GET | Get current user |
+| `/api/v1/auth/register` | POST | Register + email verification |
+| `/api/v1/auth/login` | POST | Login + JWT tokens |
+| `/api/v1/auth/logout` | POST | Logout |
+| `/api/v1/auth/verify-email/:token` | GET | Verify email |
+| `/api/v1/auth/forgot-password` | POST | Send reset email |
+| `/api/v1/auth/reset-password/:token` | POST | Reset password |
+| `/api/v1/auth/refresh-token` | POST | Refresh access token |
+| `/api/v1/auth/me` | GET | Get current user |
 
 ## 👤 User Endpoints
 
 | Endpoint | Method | Auth | Description |
 |----------|--------|------|-------------|
-| `/api/users/profile` | GET/PUT | ✅ | Get/update profile |
-| `/api/users/change-password` | PUT | ✅ | Change password |
-| `/api/users/usage` | GET | ✅ | API usage stats |
-| `/api/users/account` | DELETE | ✅ | Deactivate account |
+| `/api/v1/users/profile` | GET/PUT | ✅ | Get/update profile |
+| `/api/v1/users/change-password` | PUT | ✅ | Change password |
+| `/api/v1/users/usage` | GET | ✅ | API usage stats |
+| `/api/v1/users/account` | DELETE | ✅ | Deactivate account |
 
 ## 💳 Subscription Endpoints
 
 | Endpoint | Method | Auth | Description |
 |----------|--------|------|-------------|
-| `/api/subscriptions/plans` | GET | ❌ | List all plans |
-| `/api/subscriptions/checkout` | POST | ✅ | Create Stripe session |
-| `/api/subscriptions/cancel` | POST | ✅ | Cancel subscription |
-| `/api/subscriptions/invoices` | GET | ✅ | Billing history |
+| `/api/v1/subscriptions/plans` | GET | ❌ | List all plans |
+| `/api/v1/subscriptions/checkout` | POST | ✅ | Create Stripe session |
+| `/api/v1/subscriptions/cancel` | POST | ✅ | Cancel subscription |
+| `/api/v1/subscriptions/invoices` | GET | ✅ | Billing history |
 
 ## 🛡️ Admin Endpoints
 
 | Endpoint | Method | Role | Description |
 |----------|--------|------|-------------|
-| `/api/admin/stats` | GET | admin | Platform stats |
-| `/api/admin/users` | GET | admin | List users (paginated) |
-| `/api/admin/users/:id/role` | PUT | admin | Update user role |
-| `/api/admin/users/:id/toggle-status` | PUT | admin | Activate/deactivate |
-| `/api/admin/audit-logs` | GET | admin | View audit trail |
+| `/api/v1/admin/stats` | GET | admin | Platform stats |
+| `/api/v1/admin/users` | GET | admin | List users (paginated) |
+| `/api/v1/admin/users/:id/role` | PUT | admin | Update user role |
+| `/api/v1/admin/users/:id/toggle-status` | PUT | admin | Activate/deactivate |
+| `/api/v1/admin/audit-logs` | GET | admin | View audit trail |
 
 ## 📋 Subscription Plans
 
@@ -171,6 +171,13 @@ docker-compose up -d
 - ✅ Email verification
 - ✅ Password reset with expiry
 - ✅ Audit logging with TTL
+
+### ⚠️ Secret Rotation
+If `backend/.env` was ever committed to Git (even once), rotate these immediately:
+- **Stripe**: Stripe Dashboard → Developers → API Keys → Roll key
+- **JWT secrets**: Generate new random 256-bit strings and update backend/.env
+- **SMTP password**: Gmail → Security → App Passwords → Revoke and regenerate
+- Run `git rm --cached backend/.env` to stop tracking the file
 
 ## ☁️ Deployment (Production)
 

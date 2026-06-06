@@ -57,7 +57,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
-    try { await authAPI.logout(); } catch {}
+    try {
+      const refreshToken = localStorage.getItem('refreshToken');
+      await authAPI.logout(refreshToken);
+    } catch {}
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     clearSentryUser();

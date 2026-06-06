@@ -54,13 +54,13 @@ const authLimiter = rateLimit({
   message: { success: false, message: 'Too many login attempts, please try again after 15 minutes.' }
 });
 if (process.env.NODE_ENV === 'production') {
-  app.use('/api/', limiter);
+  app.use('/api/v1/', limiter);
 }
 
 
 
 // Stripe webhooks need raw body
-app.use('/api/webhooks', express.raw({ type: 'application/json' }), webhookRoutes);
+app.use('/api/v1/webhooks', express.raw({ type: 'application/json' }), webhookRoutes);
 
 // Body Parser
 app.use(express.json({ limit: '10kb' }));
@@ -71,7 +71,7 @@ app.use(compression());
 
 // CORS
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  origin: (process.env.CLIENT_URL || 'http://localhost:3000').replace(/\/$/, ''),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -95,13 +95,13 @@ app.get('/health', (req, res) => {
 // API Routes
 // Auth limiter only in production — no limits in development/test
 if (process.env.NODE_ENV === 'production') {
-  app.use('/api/auth', authLimiter, authRoutes);
+  app.use('/api/v1/auth', authLimiter, authRoutes);
 } else {
-  app.use('/api/auth', authRoutes);
+  app.use('/api/v1/auth', authRoutes);
 }
-app.use('/api/users', userRoutes);
-app.use('/api/subscriptions', subscriptionRoutes);
-app.use('/api/admin', adminRoutes);
+app.use('/api/v1/users', userRoutes);
+app.use('/api/v1/subscriptions', subscriptionRoutes);
+app.use('/api/v1/admin', adminRoutes);
 
 // Serve Frontend in Production
 if (process.env.NODE_ENV === 'production') {

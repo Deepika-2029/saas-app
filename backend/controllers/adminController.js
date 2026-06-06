@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const AuditLog = require('../models/AuditLog');
+const Subscription = require('../models/Subscription');
 const ApiResponse = require('../utils/apiResponse');
 const AppError = require('../utils/AppError');
 
@@ -10,7 +11,76 @@ exports.getStats = async (req, res, next) => {
       User.countDocuments({ isActive: true }),
       User.aggregate([{ $group: { _id: '$subscription.plan', count: { $sum: 1 } } }]),
     ]);
-    ApiResponse.success(res, { totalUsers, activeUsers, planCounts });
+
+    // MRR Calculation (Users with active paid subscriptions)
+    const activePaidUsersGroup = await User.aggregate([
+      { $match: { 'subscription.status': 'active', 'subscription.plan': { $ne: 'free' } } },
+      { $group: { _id: '$subscription.plan', count: { $sum: 1 } } }
+    ]);
+    const planPrices = { basic: 9.99, pro: 29.99, enterprise: 99.99 };
+    let mrr = 0;
+    activePaidUsersGroup.forEach(group => {
+      mrr += (planPrices[group._id] || 0) * group.count;
+    });
+
+    // Churn Rate Calculation
+    // formula: cancelled subscriptions this month / total active paid last month
+    const now = new Date();
+    const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    const cancelledThisMonth = await Subscription.countDocuments({
+      status: 'cancelled',
+      cancelledAt: { $gte: startOfThisMonth }
+    });
+
+    const totalPaidLastMonth = await Subscription.countDocuments({
+      plan: { $ne: 'free' },
+      createdAt: { $lt: startOfThisMonth },
+      $or: [
+        { cancelledAt: { $exists: false } },
+        { cancelledAt: null },
+        { cancelledAt: { $gte: startOfThisMonth } }
+      ]
+    });
+
+    const churnRate = totalPaidLastMonth > 0 ? (cancelledThisMonth / totalPaidLastMonth) * 100 : 0;
+
+    // User Growth LineChart (Signups grouped by day for last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    thirtyDaysAgo.setHours(0, 0, 0, 0);
+
+    const userGrowthRaw = await User.aggregate([
+      { $match: { createdAt: { $gte: thirtyDaysAgo } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+
+    const userGrowth = [];
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      const match = userGrowthRaw.find(u => u._id === dateStr);
+      userGrowth.push({
+        date: dateStr,
+        count: match ? match.count : 0
+      });
+    }
+
+    ApiResponse.success(res, {
+      totalUsers,
+      activeUsers,
+      planCounts,
+      mrr,
+      churnRate: Number(churnRate.toFixed(2)),
+      userGrowth
+    });
   } catch (error) { next(error); }
 };
 

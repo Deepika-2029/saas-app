@@ -18,7 +18,7 @@ const LoadingSpinner = () => (
   <div className="page-center"><div className="spinner"></div></div>
 );
 
-const PrivateRoute = ({ children, roles }) => {
+export const PrivateRoute = ({ children, roles }) => {
   const { isAuthenticated, isLoading, user } = useAuth();
   if (isLoading) return <LoadingSpinner />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;

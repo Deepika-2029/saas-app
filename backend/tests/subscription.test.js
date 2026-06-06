@@ -56,7 +56,9 @@ const Subscription = require('../models/Subscription');
 
 beforeAll(async () => {
   const url = process.env.MONGO_URI_TEST || 'mongodb://127.0.0.1:27017/saasapp_test';
-  await mongoose.connect(url);
+  if (mongoose.connection.readyState === 0) {
+    await mongoose.connect(url);
+  }
 });
 
 afterAll(async () => {

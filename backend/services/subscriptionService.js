@@ -80,7 +80,15 @@ exports.getInvoices = async (userId) => {
   }));
 };
 
+const getPlanFromPriceId = (priceId) => {
+  const plan = Object.keys(PLAN_PRICES).find(key => PLAN_PRICES[key] === priceId);
+  return plan || 'free';
+};
+
 exports.handleWebhook = async (event) => {
+  const sendEmail = require('../utils/sendEmail');
+  const { getPaymentFailedEmail } = require('../utils/emailTemplates');
+
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object;
@@ -92,19 +100,104 @@ exports.handleWebhook = async (event) => {
       user.subscription.stripeSubscriptionId = session.subscription;
       user.subscription.currentPeriodStart = new Date(sub.current_period_start * 1000);
       user.subscription.currentPeriodEnd = new Date(sub.current_period_end * 1000);
+      user.subscription.cancelAtPeriodEnd = sub.cancel_at_period_end;
       await user.save({ validateBeforeSave: false });
-      await Subscription.create({ user: user._id, plan: session.metadata.plan, status: 'active', stripeSubscriptionId: session.subscription, stripeCustomerId: session.customer, currentPeriodStart: user.subscription.currentPeriodStart, currentPeriodEnd: user.subscription.currentPeriodEnd });
-      logger.info(`Subscription created for user ${user._id}`);
+
+      await Subscription.findOneAndUpdate(
+        { stripeSubscriptionId: session.subscription },
+        {
+          user: user._id,
+          plan: session.metadata.plan,
+          status: 'active',
+          stripeCustomerId: session.customer,
+          currentPeriodStart: user.subscription.currentPeriodStart,
+          currentPeriodEnd: user.subscription.currentPeriodEnd,
+          cancelAtPeriodEnd: sub.cancel_at_period_end,
+        },
+        { upsert: true, new: true }
+      );
+      logger.info(`Subscription created/updated via checkout for user ${user._id}`);
       break;
     }
-    case 'invoice.payment_failed': {
-      const invoice = event.data.object;
-      await User.findOneAndUpdate({ 'subscription.stripeCustomerId': invoice.customer }, { 'subscription.status': 'past_due' });
+    case 'customer.subscription.updated': {
+      const subscription = event.data.object;
+      const plan = getPlanFromPriceId(subscription.items.data[0].price.id);
+      const user = await User.findOne({ 'subscription.stripeSubscriptionId': subscription.id });
+      if (user) {
+        user.subscription.plan = plan;
+        user.subscription.status = subscription.status;
+        user.subscription.currentPeriodStart = new Date(subscription.current_period_start * 1000);
+        user.subscription.currentPeriodEnd = new Date(subscription.current_period_end * 1000);
+        user.subscription.cancelAtPeriodEnd = subscription.cancel_at_period_end;
+        await user.save({ validateBeforeSave: false });
+      }
+
+      await Subscription.findOneAndUpdate(
+        { stripeSubscriptionId: subscription.id },
+        {
+          plan,
+          status: subscription.status,
+          currentPeriodStart: new Date(subscription.current_period_start * 1000),
+          currentPeriodEnd: new Date(subscription.current_period_end * 1000),
+          cancelAtPeriodEnd: subscription.cancel_at_period_end,
+        },
+        { upsert: true, new: true }
+      );
+      logger.info(`Subscription ${subscription.id} updated to status ${subscription.status}`);
       break;
     }
     case 'customer.subscription.deleted': {
       const subscription = event.data.object;
-      await User.findOneAndUpdate({ 'subscription.stripeSubscriptionId': subscription.id }, { 'subscription.plan': 'free', 'subscription.status': 'cancelled', 'subscription.stripeSubscriptionId': null });
+      const user = await User.findOne({ 'subscription.stripeSubscriptionId': subscription.id });
+      if (user) {
+        user.subscription.plan = 'free';
+        user.subscription.status = 'cancelled';
+        user.subscription.stripeSubscriptionId = null;
+        await user.save({ validateBeforeSave: false });
+      }
+      await Subscription.findOneAndUpdate(
+        { stripeSubscriptionId: subscription.id },
+        { status: 'cancelled', plan: 'free', cancelledAt: new Date() }
+      );
+      logger.info(`Subscription ${subscription.id} deleted (downgraded user to free)`);
+      break;
+    }
+    case 'invoice.payment_failed': {
+      const invoice = event.data.object;
+      const user = await User.findOne({ 'subscription.stripeCustomerId': invoice.customer });
+      if (user) {
+        user.subscription.status = 'past_due';
+        await user.save({ validateBeforeSave: false });
+
+        await Subscription.findOneAndUpdate(
+          { stripeCustomerId: invoice.customer },
+          { status: 'past_due' }
+        );
+
+        // Send payment failed email
+        const billingUrl = `${process.env.CLIENT_URL || 'http://localhost:3000'}/profile`;
+        await sendEmail({
+          to: user.email,
+          subject: 'Payment Failed - SaaSApp',
+          html: getPaymentFailedEmail(user.name, billingUrl),
+        });
+        logger.warn(`Invoice payment failed for customer ${invoice.customer}, status set to past_due`);
+      }
+      break;
+    }
+    case 'invoice.paid': {
+      const invoice = event.data.object;
+      const user = await User.findOne({ 'subscription.stripeCustomerId': invoice.customer });
+      if (user) {
+        user.subscription.status = 'active';
+        await user.save({ validateBeforeSave: false });
+
+        await Subscription.findOneAndUpdate(
+          { stripeCustomerId: invoice.customer },
+          { status: 'active' }
+        );
+        logger.info(`Invoice paid for customer ${invoice.customer}, status set to active`);
+      }
       break;
     }
     default:

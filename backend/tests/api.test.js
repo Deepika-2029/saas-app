@@ -22,7 +22,9 @@ jest.mock('stripe', () => jest.fn(() => ({
 const TEST_DB = process.env.MONGO_URI_TEST || 'mongodb://127.0.0.1:27017/saasapp_test_api';
 
 beforeAll(async () => {
-  await mongoose.connect(TEST_DB);
+  if (mongoose.connection.readyState === 0) {
+    await mongoose.connect(TEST_DB);
+  }
 });
 
 afterAll(async () => {
@@ -36,7 +38,7 @@ afterEach(async () => {
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 const registerUser = (overrides = {}) =>
-  request(app).post('/api/auth/register').send({
+  request(app).post('/api/v1/auth/register').send({
     name: 'Test User',
     email: 'test@api.com',
     password: 'Password1!',
@@ -44,7 +46,7 @@ const registerUser = (overrides = {}) =>
   });
 
 const loginUser = (email = 'test@api.com', password = 'Password1!') =>
-  request(app).post('/api/auth/login').send({ email, password });
+  request(app).post('/api/v1/auth/login').send({ email, password });
 
 // ─── HEALTH CHECK ─────────────────────────────────────────────────────────────
 describe('GET /health', () => {
@@ -57,7 +59,7 @@ describe('GET /health', () => {
 });
 
 // ─── AUTH ROUTES ──────────────────────────────────────────────────────────────
-describe('POST /api/auth/register', () => {
+describe('POST /api/v1/auth/register', () => {
   it('should register a user and return 201', async () => {
     const res = await registerUser();
     expect(res.status).toBe(201);
@@ -67,17 +69,17 @@ describe('POST /api/auth/register', () => {
   });
 
   it('should return 400 for missing name', async () => {
-    const res = await request(app).post('/api/auth/register').send({ email: 'x@x.com', password: 'Password1!' });
+    const res = await request(app).post('/api/v1/auth/register').send({ email: 'x@x.com', password: 'Password1!' });
     expect(res.status).toBe(400);
   });
 
   it('should return 400 for invalid email', async () => {
-    const res = await request(app).post('/api/auth/register').send({ name: 'A', email: 'notanemail', password: 'Password1!' });
+    const res = await request(app).post('/api/v1/auth/register').send({ name: 'A', email: 'notanemail', password: 'Password1!' });
     expect(res.status).toBe(400);
   });
 
   it('should return 400 for weak password', async () => {
-    const res = await request(app).post('/api/auth/register').send({ name: 'A', email: 'a@b.com', password: 'weak' });
+    const res = await request(app).post('/api/v1/auth/register').send({ name: 'A', email: 'a@b.com', password: 'weak' });
     expect(res.status).toBe(400);
   });
 
@@ -88,7 +90,7 @@ describe('POST /api/auth/register', () => {
   });
 });
 
-describe('POST /api/auth/login', () => {
+describe('POST /api/v1/auth/login', () => {
   beforeEach(async () => { await registerUser(); });
 
   it('should login with correct credentials and return 200', async () => {
@@ -108,83 +110,83 @@ describe('POST /api/auth/login', () => {
   });
 
   it('should return 400 for missing email field', async () => {
-    const res = await request(app).post('/api/auth/login').send({ password: 'Password1!' });
+    const res = await request(app).post('/api/v1/auth/login').send({ password: 'Password1!' });
     expect(res.status).toBe(400);
   });
 });
 
-describe('GET /api/auth/me', () => {
+describe('GET /api/v1/auth/me', () => {
   it('should return current user for authenticated request', async () => {
     await registerUser();
     const loginRes = await loginUser();
     const token = loginRes.body.data.accessToken;
 
-    const res = await request(app).get('/api/auth/me').set('Authorization', `Bearer ${token}`);
+    const res = await request(app).get('/api/v1/auth/me').set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(200);
     expect(res.body.data.user.email).toBe('test@api.com');
   });
 
   it('should return 401 without token', async () => {
-    const res = await request(app).get('/api/auth/me');
+    const res = await request(app).get('/api/v1/auth/me');
     expect(res.status).toBe(401);
   });
 
   it('should return 401 with invalid token', async () => {
-    const res = await request(app).get('/api/auth/me').set('Authorization', 'Bearer invalid.token');
+    const res = await request(app).get('/api/v1/auth/me').set('Authorization', 'Bearer invalid.token');
     expect(res.status).toBe(401);
   });
 });
 
-describe('POST /api/auth/logout', () => {
+describe('POST /api/v1/auth/logout', () => {
   it('should logout successfully', async () => {
     await registerUser();
     const loginRes = await loginUser();
     const token = loginRes.body.data.accessToken;
 
-    const res = await request(app).post('/api/auth/logout').set('Authorization', `Bearer ${token}`);
+    const res = await request(app).post('/api/v1/auth/logout').set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(200);
   });
 });
 
-describe('POST /api/auth/forgot-password', () => {
+describe('POST /api/v1/auth/forgot-password', () => {
   it('should return 200 for valid email', async () => {
     await registerUser();
-    const res = await request(app).post('/api/auth/forgot-password').send({ email: 'test@api.com' });
+    const res = await request(app).post('/api/v1/auth/forgot-password').send({ email: 'test@api.com' });
     expect(res.status).toBe(200);
   });
 
   it('should return 404 for unknown email', async () => {
-    const res = await request(app).post('/api/auth/forgot-password').send({ email: 'ghost@api.com' });
+    const res = await request(app).post('/api/v1/auth/forgot-password').send({ email: 'ghost@api.com' });
     expect(res.status).toBe(404);
   });
 });
 
 // ─── USER ROUTES ──────────────────────────────────────────────────────────────
-describe('GET /api/users/profile', () => {
+describe('GET /api/v1/users/profile', () => {
   it('should return user profile when authenticated', async () => {
     await registerUser();
     const loginRes = await loginUser();
     const token = loginRes.body.data.accessToken;
 
-    const res = await request(app).get('/api/users/profile').set('Authorization', `Bearer ${token}`);
+    const res = await request(app).get('/api/v1/users/profile').set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(200);
     expect(res.body.data.user.email).toBe('test@api.com');
   });
 
   it('should return 401 without auth', async () => {
-    const res = await request(app).get('/api/users/profile');
+    const res = await request(app).get('/api/v1/users/profile');
     expect(res.status).toBe(401);
   });
 });
 
-describe('PUT /api/users/profile', () => {
+describe('PUT /api/v1/users/profile', () => {
   it('should update user name', async () => {
     await registerUser();
     const loginRes = await loginUser();
     const token = loginRes.body.data.accessToken;
 
     const res = await request(app)
-      .put('/api/users/profile')
+      .put('/api/v1/users/profile')
       .set('Authorization', `Bearer ${token}`)
       .send({ name: 'Updated Name' });
     expect(res.status).toBe(200);
@@ -193,23 +195,23 @@ describe('PUT /api/users/profile', () => {
 });
 
 // ─── SUBSCRIPTION ROUTES ──────────────────────────────────────────────────────
-describe('GET /api/subscriptions/plans', () => {
+describe('GET /api/v1/subscriptions/plans', () => {
   it('should return plans without auth', async () => {
-    const res = await request(app).get('/api/subscriptions/plans');
+    const res = await request(app).get('/api/v1/subscriptions/plans');
     expect(res.status).toBe(200);
     expect(res.body.data.plans).toHaveProperty('free');
     expect(res.body.data.plans).toHaveProperty('pro');
   });
 });
 
-describe('POST /api/subscriptions/checkout', () => {
+describe('POST /api/v1/subscriptions/checkout', () => {
   it('should create checkout session for authenticated user', async () => {
     await registerUser();
     const loginRes = await loginUser();
     const token = loginRes.body.data.accessToken;
 
     const res = await request(app)
-      .post('/api/subscriptions/checkout')
+      .post('/api/v1/subscriptions/checkout')
       .set('Authorization', `Bearer ${token}`)
       .send({ plan: 'basic' });
     expect(res.status).toBe(200);
@@ -217,15 +219,15 @@ describe('POST /api/subscriptions/checkout', () => {
   });
 
   it('should return 401 without auth', async () => {
-    const res = await request(app).post('/api/subscriptions/checkout').send({ plan: 'basic' });
+    const res = await request(app).post('/api/v1/subscriptions/checkout').send({ plan: 'basic' });
     expect(res.status).toBe(401);
   });
 });
 
 // ─── ADMIN ROUTES ─────────────────────────────────────────────────────────────
-describe('GET /api/admin/stats', () => {
+describe('GET /api/v1/admin/stats', () => {
   it('should return 401 for unauthenticated request', async () => {
-    const res = await request(app).get('/api/admin/stats');
+    const res = await request(app).get('/api/v1/admin/stats');
     expect(res.status).toBe(401);
   });
 
@@ -234,7 +236,7 @@ describe('GET /api/admin/stats', () => {
     const loginRes = await loginUser();
     const token = loginRes.body.data.accessToken;
 
-    const res = await request(app).get('/api/admin/stats').set('Authorization', `Bearer ${token}`);
+    const res = await request(app).get('/api/v1/admin/stats').set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(403);
   });
 
@@ -246,7 +248,7 @@ describe('GET /api/admin/stats', () => {
       { expiresIn: '1h' }
     );
 
-    const res = await request(app).get('/api/admin/stats').set('Authorization', `Bearer ${token}`);
+    const res = await request(app).get('/api/v1/admin/stats').set('Authorization', `Bearer ${token}`);
     expect(res.status).toBe(200);
   });
 });
@@ -254,7 +256,7 @@ describe('GET /api/admin/stats', () => {
 // ─── 404 HANDLER ──────────────────────────────────────────────────────────────
 describe('Unknown routes', () => {
   it('should return 404 for unknown API routes', async () => {
-    const res = await request(app).get('/api/unknown-route');
+    const res = await request(app).get('/api/v1/unknown-route');
     expect(res.status).toBe(404);
   });
 });
