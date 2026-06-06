@@ -1,0 +1,32 @@
+services:
+  # Backend Web Service
+  - type: web
+    name: saas-backend
+    env: node
+    plan: free
+    buildCommand: npm install && cd backend && npm install
+    startCommand: cd backend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: CLIENT_URL
+        value: https://saas-app-virid-tau.vercel.app
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: saas-redis
+          property: connectionString
+
+  # Redis instance for Token Blacklist & Session tracking
+  - type: redis
+    name: saas-redis
+    plan: free
+    ipAllowList: [] # empty means only services within this blueprint can access it
