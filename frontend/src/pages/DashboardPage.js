@@ -5,10 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { userAPI, subscriptionAPI } from '../services/api';
 import toast from 'react-hot-toast';
 
-const mockUsageData = [
-  { day: 'Mon', calls: 40 }, { day: 'Tue', calls: 85 }, { day: 'Wed', calls: 62 },
-  { day: 'Thu', calls: 110 }, { day: 'Fri', calls: 95 }, { day: 'Sat', calls: 30 }, { day: 'Sun', calls: 20 },
-];
+
 
 const planColors = { free: '#94a3b8', basic: '#22c55e', pro: '#6366f1', enterprise: '#f59e0b' };
 
@@ -62,6 +59,13 @@ export default function DashboardPage() {
 
   if (loading) return <DashboardSkeleton />;
 
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const today = new Date().getDay();
+  const chartData = Array.from({ length: 7 }, (_, i) => ({
+    day: days[(today - 6 + i + 7) % 7],
+    calls: i === 6 ? (usage?.usage?.apiCalls || 0) : 0
+  }));
+
   const plan = user?.subscription?.plan || 'free';
   const planLimits = { free: 100, basic: 1000, pro: 10000, enterprise: Infinity };
   const limit = planLimits[plan];
@@ -108,7 +112,7 @@ export default function DashboardPage() {
         <div style={s.chartCard}>
           <h3 style={{ fontFamily: "'Space Grotesk',sans-serif", marginBottom: 20 }}>API Usage This Week</h3>
           <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={mockUsageData}>
+            <AreaChart data={chartData}>
               <defs><linearGradient id="grad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/><stop offset="95%" stopColor="#6366f1" stopOpacity={0}/></linearGradient></defs>
               <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 12 }} />
               <YAxis hide />
@@ -116,6 +120,7 @@ export default function DashboardPage() {
               <Area type="monotone" dataKey="calls" stroke="#6366f1" fill="url(#grad)" strokeWidth={2} />
             </AreaChart>
           </ResponsiveContainer>
+          <p style={{ color: '#94a3b8', fontSize: 12, marginTop: 12, textAlign: 'center' }}>Daily breakdown coming soon</p>
         </div>
 
         <div style={s.chartCard}>

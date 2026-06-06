@@ -11,6 +11,8 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('users');
   const [search, setSearch] = useState('');
+  const [logs, setLogs] = useState([]);
+  const [logsLoading, setLogsLoading] = useState(false);
 
   useEffect(() => {
     adminAPI.getStats().then(r => setStats(r.data.data)).catch(() => {});
@@ -23,6 +25,16 @@ export default function AdminPage() {
       .catch(() => toast.error('Failed to load users'))
       .finally(() => setLoading(false));
   }, [search]);
+
+  useEffect(() => {
+    if (tab === 'logs') {
+      setLogsLoading(true);
+      adminAPI.getAuditLogs({ page: 1, limit: 50 })
+        .then(r => setLogs(r.data.data))
+        .catch(() => toast.error('Failed to load logs'))
+        .finally(() => setLogsLoading(false));
+    }
+  }, [tab]);
 
   const handleToggleStatus = async (id) => {
     try {
@@ -190,9 +202,42 @@ export default function AdminPage() {
         )}
 
         {tab === 'logs' && (
-          <div style={{ background: '#1a1a2e', border: '1px solid #2d2d4e', borderRadius: 16, padding: 24, color: '#94a3b8', textAlign: 'center' }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>📋</div>
-            <p>Audit logs are available via the API endpoint <code style={{ background: '#0f0f1a', padding: '2px 8px', borderRadius: 4 }}>/api/admin/audit-logs</code></p>
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            {logsLoading ? (
+              <div style={{ padding: 40, textAlign: 'center' }}><div className="spinner" style={{ margin: '0 auto' }}></div></div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Timestamp</th>
+                      <th>User</th>
+                      <th>Action</th>
+                      <th>IP Address</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {logs.map(log => (
+                      <tr key={log._id}>
+                        <td>{new Date(log.createdAt).toLocaleString()}</td>
+                        <td style={{ color: '#94a3b8' }}>{log.user?.email || 'System'}</td>
+                        <td>
+                          <span className="badge badge-outline" style={{ border: '1px solid #2d2d4e', color: '#6366f1' }}>
+                            {log.action}
+                          </span>
+                        </td>
+                        <td style={{ fontFamily: 'monospace', fontSize: 13, color: '#94a3b8' }}>{log.ipAddress || 'N/A'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {logs.length === 0 && (
+                  <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>
+                    No audit logs found
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
