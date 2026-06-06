@@ -194,11 +194,22 @@ STRIPE_SECRET_KEY=sk_live_xxx
 docker-compose up -d --build
 ```
 
-### Deploy to Render/Railway
-1. Connect GitHub repo
-2. Set environment variables
-3. Set build command: `npm run install-all && npm run build`
-4. Set start command: `npm start`
+### Deploy Backend to Render (Automated Blueprint)
+
+We have added a `render.yaml` blueprint. You can deploy the backend Express.js API and a managed Redis instance in one click:
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Deepika-2029/saas-app)
+
+1. Click the button above to go to Render.
+2. Under **Blueprint Name**, give it a name (e.g., `saas-app-blueprint`).
+3. Enter your **MONGO_URI** (MongoDB Atlas connection string).
+4. Click **Apply**. Render will automatically provision:
+   - A Node/Express Web Service (`saas-backend`)
+   - A Redis instance (`saas-redis`)
+   - Automatic environment variables linking them.
+
+Once deployed, copy the backend Web Service URL and set it as `REACT_APP_API_URL` on your Vercel frontend dashboard.
+
 
 ### Deploy to AWS/GCP
 - Use Docker image with ECR/GCR
