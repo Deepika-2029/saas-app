@@ -142,6 +142,33 @@ app.use(errorHandler);
 const PORT = process.env.PORT || 5000;
 const server = app.listen(PORT, () => {
   logger.info(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+
+  // Auto-seed demo users after server starts (non-blocking)
+  setTimeout(async () => {
+    try {
+      const User = require('./models/User');
+      const bcrypt = require('bcryptjs');
+      const demoUsers = [
+        { name: 'Admin User', email: 'admin@saasapp.com', password: 'Password123!', role: 'admin', isEmailVerified: true, subscription: { plan: 'enterprise', status: 'active' } },
+        { name: 'Pro User', email: 'pro@saasapp.com', password: 'Password123!', role: 'user', isEmailVerified: true, subscription: { plan: 'pro', status: 'active' } },
+        { name: 'Free User', email: 'free@saasapp.com', password: 'Password123!', role: 'user', isEmailVerified: true, subscription: { plan: 'free', status: 'active' } },
+      ];
+      for (const u of demoUsers) {
+        const exists = await User.findOne({ email: u.email });
+        if (!exists) {
+          await User.create(u);
+          logger.info(`Demo user created: ${u.email}`);
+        } else if (exists.loginAttempts > 0 || exists.lockUntil) {
+          // Reset locked accounts
+          exists.loginAttempts = 0;
+          exists.lockUntil = undefined;
+          await exists.save({ validateBeforeSave: false });
+        }
+      }
+    } catch (e) {
+      logger.warn(`Auto-seed skipped: ${e.message}`);
+    }
+  }, 3000);
 });
 
 // Handle unhandled promise rejections

@@ -4,7 +4,7 @@ services:
     name: saas-backend
     env: node
     plan: free
-    buildCommand: npm install && cd backend && npm install && node seed.js
+    buildCommand: npm install && cd backend && npm install
     startCommand: cd backend && npm start
     envVars:
       - key: NODE_ENV
