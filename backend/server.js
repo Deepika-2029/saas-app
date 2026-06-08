@@ -101,11 +101,17 @@ app.use(morgan('combined', {
 
 // Health Check
 app.get('/health', (req, res) => {
+  const mongoose = require('mongoose');
+  const dbStates = ['disconnected', 'connected', 'connecting', 'disconnecting'];
+  const dbState = dbStates[mongoose.connection.readyState] || 'unknown';
+  const mongoUriSet = !!(process.env.MONGO_URI && process.env.MONGO_URI !== 'mongodb://localhost:27017/saasapp');
   res.status(200).json({
     success: true,
     message: 'Server is running',
     environment: process.env.NODE_ENV,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    db: dbState,
+    mongoUriConfigured: mongoUriSet,
   });
 });
 
