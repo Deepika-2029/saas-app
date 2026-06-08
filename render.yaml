@@ -4,7 +4,7 @@ services:
     name: saas-backend
     env: node
     plan: free
-    buildCommand: npm install && cd backend && npm install
+    buildCommand: npm install && cd backend && npm install && node seed.js
     startCommand: cd backend && npm start
     envVars:
       - key: NODE_ENV
@@ -17,8 +17,12 @@ services:
         sync: false
       - key: JWT_SECRET
         generateValue: true
+      - key: JWT_EXPIRE
+        value: 7d
       - key: JWT_REFRESH_SECRET
         generateValue: true
+      - key: JWT_REFRESH_EXPIRE
+        value: 30d
       - key: REDIS_URL
         fromService:
           type: redis

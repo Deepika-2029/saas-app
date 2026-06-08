@@ -39,7 +39,8 @@ app.use(sentryTracingHandler());
 connectDB();
 
 // Security Middleware
-app.use(helmet());
+// crossOriginResourcePolicy disabled so CORS headers are not blocked by helmet
+app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use(mongoSanitize());
 
 // Rate Limiting — only active in production
@@ -59,6 +60,30 @@ if (process.env.NODE_ENV === 'production') {
 
 
 
+// CORS — must be BEFORE body parser and routes to handle preflight OPTIONS
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  (process.env.CLIENT_URL || '').replace(/\/$/, ''),
+].filter(Boolean);
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (e.g. curl, Postman, mobile apps)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS: origin '${origin}' not allowed`));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  optionsSuccessStatus: 200, // some legacy browsers choke on 204
+};
+
+app.use(cors(corsOptions));
+// Explicitly handle preflight for all routes (important for Render cold starts)
+app.options('*', cors(corsOptions));
+
 // Stripe webhooks need raw body
 app.use('/api/v1/webhooks', express.raw({ type: 'application/json' }), webhookRoutes);
 
@@ -68,14 +93,6 @@ app.use(express.urlencoded({ extended: true }));
 
 // Compression
 app.use(compression());
-
-// CORS
-app.use(cors({
-  origin: (process.env.CLIENT_URL || 'http://localhost:3000').replace(/\/$/, ''),
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
 
 // HTTP Request Logger
 app.use(morgan('combined', {
