@@ -6,10 +6,10 @@
 import * as Sentry from '@sentry/react';
 
 export const initSentry = () => {
-  const dsn = process.env.REACT_APP_SENTRY_DSN;
+  const dsn = import.meta.env.VITE_SENTRY_DSN;
   if (!dsn) {
     if (process.env.NODE_ENV !== 'production') {
-      console.warn('[Sentry] REACT_APP_SENTRY_DSN not set — error tracking disabled.');
+      console.warn('[Sentry] VITE_SENTRY_DSN not set — error tracking disabled.');
     }
     return;
   }
@@ -17,7 +17,7 @@ export const initSentry = () => {
   Sentry.init({
     dsn,
     environment: process.env.NODE_ENV || 'development',
-    release: process.env.REACT_APP_VERSION || '1.0.0',
+    release: import.meta.env.VITE_VERSION || '1.0.0',
 
     // Capture 100% of transactions in dev, 10% in production
     tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
@@ -47,7 +47,7 @@ export const initSentry = () => {
  * @param {{ id: string, email: string, role: string }} user
  */
 export const setSentryUser = (user) => {
-  if (!process.env.REACT_APP_SENTRY_DSN) return;
+  if (!import.meta.env.VITE_SENTRY_DSN) return;
   Sentry.setUser({ id: user.id, email: user.email, role: user.role });
 };
 
@@ -55,7 +55,7 @@ export const setSentryUser = (user) => {
  * Clear user context from Sentry (call on logout).
  */
 export const clearSentryUser = () => {
-  if (!process.env.REACT_APP_SENTRY_DSN) return;
+  if (!import.meta.env.VITE_SENTRY_DSN) return;
   Sentry.setUser(null);
 };
 
@@ -65,7 +65,7 @@ export const clearSentryUser = () => {
  * @param {Object} [extras]
  */
 export const captureException = (error, extras = {}) => {
-  if (!process.env.REACT_APP_SENTRY_DSN) return;
+  if (!import.meta.env.VITE_SENTRY_DSN) return;
   Sentry.withScope((scope) => {
     Object.entries(extras).forEach(([k, v]) => scope.setExtra(k, v));
     Sentry.captureException(error);
